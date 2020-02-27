@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+# coding=utf-8
+
+import sys, urllib, json
+import urllib.parse
+import urllib.request
+
+import os
+import webbrowser
+from subprocess import Popen, PIPE
+
+def run_rofi(alts, prompt="Settings", strip=True, force_alts=False, max_lines=20):
+    """TODO: Docstring for run_rofi.
+    :returns: Selected option or entered string
+    """
+    lines = max(min(max_lines, len(alts)), 1);
+
+    rofi = Popen(["rofi", "-i", "-dmenu", "-l", str(lines), "-p", prompt], stdout=PIPE, stdin=PIPE)
+    selected = rofi.communicate("\n".join(alts).encode("utf-8"))[0].decode("utf-8")
+
+    if strip:
+        selected = selected.strip();
+    
+    return selected;
+
+class timeline ():
+    def __init__ (self):
+        self.url_cn     = 'https://bangumi.bilibili.com/web_api/timeline_cn'
+        self.url_global = 'https://bangumi.bilibili.com/web_api/timeline_global'
+        self.url = ''
+        
+        self.MainRun()
+
+    def choose_url(self):
+        timelines = ["番剧时间表", "国创时间表"]
+        sel = run_rofi([i for i in timelines], "Choose Timeline")
+        if not sel:
+            sys.exit()
+        if (sel == "番剧时间表"):
+            self.url = self.url_global
+        else:
+            self.url = self.url_cn
+    
+    def choose_day(self, CONTENT):
+        result = json.loads(CONTENT)["result"]
+        sel = run_rofi( [self.get_date(d) for d in result], "日期" )
+        if not sel:
+            sys.exit()
+        
+        sel_day = [i for i in result if self.get_date(i) == sel]
+        assert len(sel_day) == 1
+        return sel_day[0]["seasons"]
+
+    def get_date(self, ITEM):
+        if (ITEM["is_today"]):
+            return ("Today")
+        else:
+            return (ITEM["date"]+self.get_week(ITEM["day_of_week"]))
+
+    def get_week(self, day_num):
+        if day_num == 1:
+            return "(周一)"
+        elif day_num == 2:
+            return "(周二)"
+        elif day_num == 3:
+            return "(周三)"
+        elif day_num == 4:
+            return "(周四)"
+        elif day_num == 5:
+            return "(周五)"
+        elif day_num == 6:
+            return "(周六)"
+        elif day_num == 7:
+            return "(周日)"
+
+    def get_bangumi(self, item):
+        self.index += 1
+        if (item["delay"]):
+            return "{0} {1}({2}) {3}".format(self.index, item["title"], item["delay_index"], item["delay_reason"])
+        else:
+            return "{0} {1}({2}) {3}".format(self.index, item["title"], item["pub_index"], item["pub_time"])
+
+    def choose_bangumi(self, SEASONS):
+        self.index = 0
+        sel = run_rofi( [self.get_bangumi(d) for d in SEASONS], "TIMELINE" )
+        if not sel:
+            sys.exit()
+        self.index = 0
+        sel_bangumi = [i for i in SEASONS if self.get_bangumi(i) == sel]
+        assert len(sel_bangumi) == 1
+        return sel_bangumi[0]
+
+    def MainRun (self):
+        self.choose_url()
+        req = urllib.request.Request(self.url)
+        resp = urllib.request.urlopen(req)
+        content = resp.read()
+        if (content):
+            sel_seasons = self.choose_day(content)
+            bangumi = self.choose_bangumi(sel_seasons)
+            webbrowser.open(bangumi["url"])
+
+if __name__ == '__main__':
+    client = timeline()
