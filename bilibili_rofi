@@ -9,13 +9,12 @@ import os
 import webbrowser
 from subprocess import Popen, PIPE
 
-def run_rofi(alts, prompt="Settings", strip=True, force_alts=False, max_lines=20):
+def run_rofi(alts, prompt="Settings", selected_row=0, strip=True, force_alts=False, max_lines=20):
     """TODO: Docstring for run_rofi.
     :returns: Selected option or entered string
     """
     lines = max(min(max_lines, len(alts)), 1);
-
-    rofi = Popen(["rofi", "-i", "-dmenu", "-l", str(lines), "-p", prompt], stdout=PIPE, stdin=PIPE)
+    rofi = Popen(["rofi", "-i", "-dmenu", "-l", str(lines), "-p", prompt, "-selected-row", str(selected_row)], stdout=PIPE, stdin=PIPE)
     selected = rofi.communicate("\n".join(alts).encode("utf-8"))[0].decode("utf-8")
 
     if strip:
@@ -43,7 +42,7 @@ class timeline ():
     
     def choose_day(self, CONTENT):
         result = json.loads(CONTENT)["result"]
-        sel = run_rofi( [self.get_date(d) for d in result], "日期" )
+        sel = run_rofi( [self.get_date(d) for d in result], "日期", 6 )
         if not sel:
             sys.exit()
         
@@ -81,8 +80,17 @@ class timeline ():
             return "{0} {1}({2}) {3}".format(self.index, item["title"], item["pub_index"], item["pub_time"])
 
     def choose_bangumi(self, SEASONS):
+        self.published = 0
         self.index = 0
-        sel = run_rofi( [self.get_bangumi(d) for d in SEASONS], "TIMELINE" )
+        for x in SEASONS:
+            self.index += 1
+            if (x["is_published"]):
+                self.published = self.index-1
+        
+        self.index = 0
+        sel = run_rofi( [self.get_bangumi(d) for d in SEASONS], "TIMELINE" , self.published)
+        if ( sel == ".." ):
+            return sel
         if not sel:
             sys.exit()
         self.index = 0
@@ -96,8 +104,10 @@ class timeline ():
         resp = urllib.request.urlopen(req)
         content = resp.read()
         if (content):
-            sel_seasons = self.choose_day(content)
-            bangumi = self.choose_bangumi(sel_seasons)
+            bangumi = '..'
+            while ( bangumi == '..' ):
+                sel_seasons = self.choose_day(content)
+                bangumi = self.choose_bangumi(sel_seasons)
             webbrowser.open(bangumi["url"])
 
 if __name__ == '__main__':
