@@ -9,12 +9,15 @@ import os
 import webbrowser
 from subprocess import Popen, PIPE
 
-def run_rofi(alts, prompt="Settings", selected_row=0, strip=True, force_alts=False, max_lines=20):
+def run_rofi(alts, prompt="Settings", selected_row=0, urgent_show=-1, strip=True, force_alts=False, max_lines=20):
     """TODO: Docstring for run_rofi.
     :returns: Selected option or entered string
     """
     lines = max(min(max_lines, len(alts)), 1);
-    rofi = Popen(["rofi", "-i", "-dmenu", "-l", str(lines), "-p", prompt, "-selected-row", str(selected_row)], stdout=PIPE, stdin=PIPE)
+    if (urgent_show == -1):
+        rofi = Popen(["rofi", "-i", "-dmenu", "-l", str(lines), "-p", prompt, "-selected-row", str(selected_row)], stdout=PIPE, stdin=PIPE)
+    else:
+        rofi = Popen(["rofi", "-i", "-dmenu", "-l", str(lines), "-p", prompt, "-selected-row", str(selected_row), "-u", "-"+str(urgent_show)], stdout=PIPE, stdin=PIPE)
     selected = rofi.communicate("\n".join(alts).encode("utf-8"))[0].decode("utf-8")
 
     if strip:
@@ -80,7 +83,7 @@ class timeline ():
             return "{0} {1}({2}) {3}".format(self.index, item["title"], item["pub_index"], item["pub_time"])
 
     def choose_bangumi(self, SEASONS):
-        self.published = 0
+        self.published = -1
         self.index = 0
         for x in SEASONS:
             self.index += 1
@@ -88,7 +91,7 @@ class timeline ():
                 self.published = self.index-1
         
         self.index = 0
-        sel = run_rofi( [self.get_bangumi(d) for d in SEASONS], "TIMELINE" , self.published)
+        sel = run_rofi( [self.get_bangumi(d) for d in SEASONS], "TIMELINE" , self.published, self.published)
         if ( sel == ".." ):
             return sel
         if not sel:
