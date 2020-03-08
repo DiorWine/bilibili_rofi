@@ -2,12 +2,14 @@
 # coding=utf-8
 
 import sys, urllib, json
+import gzip
+import webbrowser
 import urllib.parse
 import urllib.request
-
-import os
-import webbrowser
+from io import BytesIO
 from subprocess import Popen, PIPE
+
+import user
 
 def run_rofi(alts, prompt="Settings", selected_row=0, published_num='', delay_num='', strip=True, force_alts=False, max_lines=20):
     """TODO: Docstring for run_rofi.
@@ -32,19 +34,49 @@ class timeline ():
     def __init__ (self):
         self.url_cn     = 'https://bangumi.bilibili.com/web_api/timeline_cn'
         self.url_global = 'https://bangumi.bilibili.com/web_api/timeline_global'
+        self.url_dyn    = 'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/dynamic_new?uid={0}&type_list=8'.format(user.uid)
         self.url = ''
+        self.headers = {}
+        self.content = ''
         
         self.MainRun()
 
     def choose_url(self):
-        timelines = ["番剧时间表", "国创时间表"]
+        timelines = ["番剧时间表", "国创时间表", "关注动态"]
         sel = run_rofi([i for i in timelines], "Choose Timeline")
         if not sel:
             sys.exit()
         if (sel == "番剧时间表"):
             self.url = self.url_global
-        else:
+            sel_type = 1
+        elif (sel == "国创时间表"):
             self.url = self.url_cn
+            sel_type = 1
+        elif (sel == "关注动态"):
+            self.url = self.url_dyn
+            self.headers = {
+                'GET https': '/dynamic_svr/v1/dynamic_svr/dynamic_new?uid={0}&type_list=8 HTTP/1.1'.format(user.uid),
+                'Host': 'api.vc.bilibili.com',
+                'Connection': 'keep-alive',
+                'Accept': 'application/json, text/plain, */*',
+                'Sec-Fetch-Dest': 'empty',
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36',
+                'Origin': 'https://t.bilibili.com',
+                'Sec-Fetch-Site': 'same-site',
+                'Sec-Fetch-Mode': 'cors',
+                'Referer': 'https://t.bilibili.com/?tab=8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Cookie' : user.cookie
+            }
+            sel_type = 2
+        req = urllib.request.Request(url=self.url, headers=self.headers)
+        resp = urllib.request.urlopen(req)
+        self.content = resp.read()
+        if (not self.content):
+            sys.exit()
+        return sel_type
+
     
     def choose_day(self, CONTENT):
         result = json.loads(CONTENT)["result"]
@@ -107,17 +139,40 @@ class timeline ():
         assert len(sel_bangumi) == 1
         return sel_bangumi[0]
 
+    def get_dynamic(self, card):
+        title = json.loads(card["card"])["title"]
+        owner = json.loads(card["card"])["owner"]
+        return (u"{0} ({1})".format(title, owner["name"]))
+
+
+    def choose_dynamic(self):
+        cardlists = json.loads(self.content)["data"]["cards"]
+        sel = run_rofi( [self.get_dynamic(d) for d in cardlists], "动态")
+        if not sel:
+            sys.exit()
+        sel_dyn = [i for i in cardlists if self.get_dynamic(i) == sel]
+        assert len(sel_dyn) == 1
+        aid = json.loads(sel_dyn[0]["card"])["aid"]
+        return ("https://www.bilibili.com/video/av{0}".format(aid))
+
+    def unzip_content(self):
+        buff = BytesIO(self.content)
+        f = gzip.GzipFile(fileobj=buff)
+        self.content = f.read().decode()
+        if (not self.content):
+            sys.exit()
+
     def MainRun (self):
-        self.choose_url()
-        req = urllib.request.Request(self.url)
-        resp = urllib.request.urlopen(req)
-        content = resp.read()
-        if (content):
+        TYPE = self.choose_url()
+        if (TYPE == 1):
             bangumi = '..'
             while ( bangumi == '..' ):
-                sel_seasons = self.choose_day(content)
+                sel_seasons = self.choose_day(self.content)
                 bangumi = self.choose_bangumi(sel_seasons)
             webbrowser.open(bangumi["url"])
+        elif (TYPE == 2):
+            self.unzip_content()
+            webbrowser.open(self.choose_dynamic())
 
 if __name__ == '__main__':
     client = timeline()
