@@ -35,7 +35,7 @@ class timeline ():
         self.url_cn     = 'https://bangumi.bilibili.com/web_api/timeline_cn'
         self.url_global = 'https://bangumi.bilibili.com/web_api/timeline_global'
         self.url_dyn    = 'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/dynamic_new?uid={0}&type_list=8'.format(user.uid)
-        self.url_live   = 'https://api.live.bilibili.com/relation/v1/feed/getList?page=1&pagesize=10'
+        self.url_live   = 'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/w_live_users?size=10'
         self.url = ''
         self.headers = {}
         self.content = ''
@@ -74,7 +74,7 @@ class timeline ():
         elif (sel == "直播"):
             self.url = self.url_live
             self.headers = {
-                'GET https': '/relation/v1/feed/getList?page=1&pagesize=10 HTTP/1.1',
+                'GET https': '/dynamic_svr/v1/dynamic_svr/w_live_users?size=10 HTTP/1.1',
                 'Host': 'api.live.bilibili.com',
                 'Connection': 'keep-alive',
                 'Accept': 'application/json, text/plain, */*',
@@ -177,10 +177,10 @@ class timeline ():
         return ("https://www.bilibili.com/video/av{0}".format(aid))
 
     def get_live(self, item):
-        return ("{0}[{2}] {1}".format(item["title"], item["uname"], item["area_v2_name"]))
+        return ("{0} [-{1}-]".format(item["title"], item["uname"]))
     
     def choose_live(self):
-        itemlists = json.loads(self.content)["data"]["rooms"]
+        itemlists = json.loads(self.content)["data"]["items"]
         sel = run_rofi( [self.get_live(d) for d in itemlists], "直播")
         if not sel:
             sys.exit()
